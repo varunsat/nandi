@@ -248,6 +248,8 @@ JWT_MANAGER_PATH = os.environ.get(
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "saleor.tenant.middleware.TenantMiddleware",
     "django.middleware.common.CommonMiddleware",
     "saleor.core.middleware.jwt_refresh_token_middleware",
 ]
@@ -298,6 +300,7 @@ INSTALLED_APPS = [
     "saleor.app",
     "saleor.thumbnail",
     "saleor.schedulers",
+    "saleor.tenant",
     # External apps
     "django_measurement",
     "django_prices",
@@ -457,7 +460,11 @@ TEST_RUNNER = "saleor.tests.runner.PytestTestRunner"
 
 PLAYGROUND_ENABLED = get_bool_from_env("PLAYGROUND_ENABLED", True)
 
-ALLOWED_HOSTS = get_list(os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1"))
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    ".buildy.store",  # Allows all subdomains of buildy.store
+]
 ALLOWED_GRAPHQL_ORIGINS: list[str] = get_list(
     os.environ.get("ALLOWED_GRAPHQL_ORIGINS", "*")
 )
@@ -546,8 +553,8 @@ PLACEHOLDER_IMAGES = {
 
 
 AUTHENTICATION_BACKENDS = [
-    "saleor.core.auth_backend.JSONWebTokenBackend",
-    "saleor.core.auth_backend.PluginBackend",
+    "saleor.tenant.auth.TenantAwareAuthBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 # Expired checkouts settings - defines after what time checkouts will be deleted
@@ -1059,3 +1066,28 @@ BREAKER_BOARD_DRY_RUN_SYNC_EVENTS = get_list(
 # Library `google-i18n-address` use `AddressValidationMetadata` form Google to provide address validation rules.
 # Patch `i18n` module to allows to override the default address rules.
 i18n_rules_override()
+
+# Tenant Settings
+MARKETPLACE_DOMAIN = 'buildy.store'
+MARKETPLACE_ADMIN_DOMAIN = f'admin.{MARKETPLACE_DOMAIN}'
+MARKETPLACE_HOMEPAGE_URL = f'https://{MARKETPLACE_DOMAIN}'
+
+# Database configuration for tenant schemas
+DATABASE_ROUTERS = ['saleor.tenant.db_routers.TenantRouter']
+
+# Tenant-specific template settings
+TEMPLATES[0]['OPTIONS']['context_processors'].append('saleor.tenant.context_processors.tenant')
+
+# Authentication settings for multi-tenant
+AUTHENTICATION_BACKENDS = [
+    'saleor.tenant.auth.TenantAwareAuthBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# GraphQL settings for multi-tenant
+GRAPHENE = {
+    'SCHEMA': 'saleor.graphql.api.schema',
+    'MIDDLEWARE': [
+        'saleor.tenant.graphql.middleware.TenantMiddleware',
+    ],
+}
